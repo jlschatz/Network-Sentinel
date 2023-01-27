@@ -9,27 +9,26 @@ import (
 	"github.com/google/gopacket/pcap"
 	"log"
 	"net"
+	"sentinel/storage"
 	"sync"
 	"time"
 )
 
-//type Service interface {
-//	getInterfaces() error
-//	scan(iface *net.Interface) error
-//	readARP(handle *pcap.Handle, iface *net.Interface, stop chan struct{})
-//	writeARP(handle *pcap.Handle, iface *net.Interface, addr *net.IPNet) error
-//	ips(n *net.IPNet) (out []net.IP)
-//}
-
 type service struct {
-	Interfaces map[string]string
+	store storage.Store
 }
 
-func NewService() *service {
-	s := &service{}
-	s.getInterfaces()
-	s.Interfaces = make(map[string]string)
+func NewService(store storage.Store) *service {
+	s := &service{store: store}
+	go s.runScanOnInterval()
 	return s
+}
+
+func (s *service) runScanOnInterval() {
+	s.getInterfaces()
+	for range time.Tick(time.Minute * 1) {
+		s.getInterfaces()
+	}
 }
 
 // getInterfaces gets a list of all available interfaces on the network
@@ -111,8 +110,10 @@ func (s *service) scan(iface *net.Interface) error {
 		// We don't know exactly how long it'll take for packets to be
 		// sent back to us, but 10 seconds should be more than enough
 		// time ;)
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
+		break
 	}
+	return nil
 }
 
 // readARP watches a handle for incoming ARP responses we might care about, and prints them.
@@ -140,8 +141,7 @@ func (s *service) readARP(handle *pcap.Handle, iface *net.Interface, stop chan s
 			// if for example someone else sends US an ARP request.
 			log.Printf("IP %v is at %v", net.IP(arp.SourceProtAddress), net.HardwareAddr(arp.SourceHwAddress))
 
-			s.Interfaces[net.IP(arp.SourceProtAddress).String()] = net.HardwareAddr(arp.SourceHwAddress).String()
-
+			s.store.Insert(net.IP(arp.SourceProtAddress).String(), net.HardwareAddr(arp.SourceHwAddress).String())
 		}
 	}
 }
