@@ -137,11 +137,7 @@ func (s *service) readARP(handle *pcap.Handle, iface *net.Interface, stop chan s
 				// This is a packet I sent.
 				continue
 			}
-			// Note:  we might get some packets here that aren't responses to ones we've sent,
-			// if for example someone else sends US an ARP request.
-			log.Printf("IP %v is at %v", net.IP(arp.SourceProtAddress), net.HardwareAddr(arp.SourceHwAddress))
-
-			s.store.Insert(net.IP(arp.SourceProtAddress).String(), net.HardwareAddr(arp.SourceHwAddress).String())
+			s.store.Upsert(net.IP(arp.SourceProtAddress).String(), net.HardwareAddr(arp.SourceHwAddress).String())
 		}
 	}
 }

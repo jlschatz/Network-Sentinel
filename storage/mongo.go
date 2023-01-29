@@ -4,11 +4,45 @@ import (
 	"context"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"os"
 	"sentinel/models"
 )
+
+func (s store) FindAll() ([]models.Entity, error) {
+	c := s.db.Collection(os.Getenv("COLLECTION"))
+	findOptions := options.Find()
+
+	var results []models.Entity
+
+	cur, err := c.Find(context.TODO(), bson.D{{}}, findOptions)
+	if err != nil {
+		log.Println(err)
+		return results, err
+	}
+
+	for cur.Next(context.TODO()) {
+
+		var elem models.Entity
+		err := cur.Decode(&elem)
+		if err != nil {
+			log.Println(err)
+			return results, err
+		}
+
+		results = append(results, elem)
+	}
+
+	if err := cur.Err(); err != nil {
+		log.Println(err)
+		return results, err
+	}
+
+	cur.Close(context.TODO())
+
+	return results, nil
+}
 
 func (s store) Find(mac string) (models.Entity, error) {
 	c := s.db.Collection(os.Getenv("COLLECTION"))
@@ -28,31 +62,25 @@ func (s store) Find(mac string) (models.Entity, error) {
 	return result, nil
 }
 
-func (s store) Insert(ip, mac string) error {
+func (s store) Upsert(ip, mac string) error {
 	s.NewDatabaseConnection()
 	c := s.db.Collection(os.Getenv("COLLECTION"))
 
-	insertResult, err := c.InsertOne(context.TODO(), models.Entity{IP: ip, MAC: mac})
+	filter := bson.D{{"mac", mac}}
+	update := bson.D{{"$set", bson.D{{"ip", ip}, {"mac", mac}}}}
+	opts := options.Update().SetUpsert(true)
+
+	result, err := c.UpdateOne(context.TODO(), filter, update, opts)
 	if err != nil {
-		log.Println(err)
-		return s.CloseDatabaseConnection()
+		s.CloseDatabaseConnection()
+		return err
 	}
 
-	fmt.Printf("Inserted a single document: %v\n", insertResult.InsertedID)
+	if result.ModifiedCount > 0 {
+		fmt.Println(fmt.Printf("Updated entity: %v", mac))
+	}
+	if result.UpsertedCount > 0 {
+		fmt.Println(fmt.Printf("Inserted entity: IP %v MAC %v", ip, mac))
+	}
 	return s.CloseDatabaseConnection()
-
-}
-
-func (s store) Update(m models.Entity) error {
-	c := s.db.Collection(os.Getenv("COLLECTION"))
-
-	filter := bson.D{{"mac", m.MAC}}
-
-	update := bson.D{primitive.E{Key: "$set", Value: bson.D{
-		primitive.E{Key: "ip", Value: m.IP},
-	}}}
-
-	entity := &models.Entity{}
-
-	return c.FindOneAndUpdate(context.TODO(), filter, update).Decode(entity)
 }

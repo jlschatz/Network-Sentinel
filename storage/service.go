@@ -12,13 +12,14 @@ import (
 type Store interface {
 	NewDatabaseConnection() error
 	CloseDatabaseConnection() error
-	Insert(ip, mac string) error
+	Upsert(ip, mac string) error
 	Find(mac string) (models.Entity, error)
-	Update(m models.Entity) error
+	FindAll() ([]models.Entity, error)
 }
 
 type store struct {
-	db *mongo.Database
+	db       *mongo.Database
+	entities []models.Entity
 }
 
 func NewStore() Store {
