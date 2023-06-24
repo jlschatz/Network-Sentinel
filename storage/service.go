@@ -60,7 +60,7 @@ func (s *store) CloseDatabaseConnection() error {
 	return s.db.Client().Disconnect(context.TODO())
 }
 
-func (s *store) SetTestEnvironmentVariables() error {
+func (s store) SetTestEnvironmentVariables() error {
 	if err := os.Setenv("MONGO", "mongodb://localhost:27017"); err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (s *store) SetTestEnvironmentVariables() error {
 	return nil
 }
 
-func (s *store) ValidateEnvironmentVariables() error {
+func (s store) ValidateEnvironmentVariables() error {
 	if os.Getenv("MONGO") == "" {
 		return errors.New("MONGO env variable not set")
 	}
